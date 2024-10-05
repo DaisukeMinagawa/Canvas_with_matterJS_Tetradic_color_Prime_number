@@ -15,6 +15,9 @@ const render = Render.create({
     }
 });
 
+// スコアを管理する変数
+let score = 0;
+
 // 地面を作る。画面の下端に置く
 const ground = Bodies.rectangle(window.innerWidth / 2, window.innerHeight, window.innerWidth, 60, { 
     isStatic: true,  // 動かないようにする
@@ -107,15 +110,23 @@ function shootBall(startX, startY) {
     Body.applyForce(ball, ball.position, { x: forceX, y: forceY });
 }
 
+// 画面の下3分の1の領域にあるかどうかをチェックする関数
+function isInBottomThird(y) {
+    return y > (window.innerHeight * 2 / 3);
+}
+
 // 衝突イベントを監視する
 Events.on(engine, 'collisionStart', (event) => {
     event.pairs.forEach((pair) => {
         const { bodyA, bodyB } = pair;
-        // 両方がボールで、同じ色の場合
-        if (bodyA.color && bodyB.color && bodyA.color === bodyB.color) {
+        // 両方がボールで、同じ色で、かつ画面の下3分の1にある場合
+        if (bodyA.color && bodyB.color && bodyA.color === bodyB.color &&
+            isInBottomThird(bodyA.position.y) && isInBottomThird(bodyB.position.y)) {
             // 両方のボールを消す
             World.remove(engine.world, [bodyA, bodyB]);
             balls = balls.filter(ball => ball !== bodyA && ball !== bodyB);
+            // スコアを増やす
+            score += 1;
         }
     });
 });
@@ -199,3 +210,29 @@ render.canvas.addEventListener('click', handleInteraction);
 
 // タッチイベントリスナーを追加（モバイルデバイス用）
 render.canvas.addEventListener('touchstart', handleInteraction);
+
+// 画面を分割する線を描画する関数
+function drawDividers() {
+    const ctx = render.context;
+    ctx.strokeStyle = 'rgba(128, 128, 128, 0.1)'; // 薄いグレー (0.1の透明度)
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, window.innerHeight * 2 / 3);
+    ctx.lineTo(window.innerWidth, window.innerHeight * 2 / 3);
+    ctx.stroke();
+}
+
+// スコアを描画する関数
+function drawScore() {
+    const ctx = render.context;
+    ctx.font = '40px Arial';
+    ctx.fillStyle = 'black';
+    ctx.textAlign = 'right';
+    ctx.fillText(`SCORE: ${score}`, window.innerWidth - 20, 60);
+}
+
+// レンダリング後に分割線とスコアを描画
+Events.on(render, 'afterRender', () => {
+    drawDividers();
+    drawScore();
+});
