@@ -3,6 +3,9 @@ const { Engine, Render, Runner, Bodies, World, Body, Vector, Events } = Matter;
 
 // 物理エンジンを作る。これが物理シミュレーションの中心になる
 const engine = Engine.create();
+// 重力を逆さまにする
+engine.world.gravity.y = -1;
+
 // 画面に描画するためのレンダラーを作る。これでシミュレーションが目に見えるようになる
 const render = Render.create({
     element: document.body,  // body に描画する
@@ -18,8 +21,8 @@ const render = Render.create({
 // スコアを管理する変数
 let score = 0;
 
-// 地面を作る。画面の下端に置く
-const ground = Bodies.rectangle(window.innerWidth / 2, window.innerHeight, window.innerWidth, 60, { 
+// 天井（元の地面）を作る。画面の上端に置く
+const ceiling = Bodies.rectangle(window.innerWidth / 2, 0, window.innerWidth, 60, { 
     isStatic: true,  // 動かないようにする
     render: { fillStyle: 'rgba(0,0,0,0)' }  // 透明にする
 });
@@ -36,8 +39,8 @@ const rightWall = Bodies.rectangle(window.innerWidth, window.innerHeight / 2, 60
     render: { fillStyle: 'rgba(0,0,0,0)' }  // 透明にする
 });
 
-// 作った地面と壁を物理世界に追加する
-World.add(engine.world, [ground, leftWall, rightWall]);
+// 作った天井と壁を物理世界に追加する
+World.add(engine.world, [ceiling, leftWall, rightWall]);
 
 // 物理エンジンを動かすためのランナーを作る
 const runner = Runner.create();
@@ -91,11 +94,11 @@ let balls = [];
 // 最小のボールの数
 const minBalls = 20;
 
-// ボールを発射する関数
+// ボールを発射する関数（上向きに変更）
 function shootBall(startX, startY) {
     // startXとstartYが指定されていない場合、ランダムな位置から発射
     if (startX === undefined) startX = Math.random() * (window.innerWidth - 100) + 50;
-    if (startY === undefined) startY = Math.random() * (window.innerHeight / 3);
+    if (startY === undefined) startY = window.innerHeight * 2 / 3 + Math.random() * (window.innerHeight / 3);
 
     const ball = createBall(startX, startY);  // ボールを作る
     World.add(engine.world, ball);  // 物理世界にボールを追加する
@@ -104,24 +107,24 @@ function shootBall(startX, startY) {
     // 発射する力の大きさを決める。発射位置のX座標が素数なら強め、そうでなければ弱めにする
     const forceMagnitude = isPrime(Math.floor(startX)) ? 0.03 : 0.02;
     const forceX = (Math.random() - 0.5) * forceMagnitude;  // X方向の力をランダムに決める
-    const forceY = Math.random() * -forceMagnitude;  // Y方向の力を上向きにランダムに決める
+    const forceY = Math.random() * forceMagnitude;  // Y方向の力を上向きにランダムに決める
 
     // ボールに力を加えて発射する
     Body.applyForce(ball, ball.position, { x: forceX, y: forceY });
 }
 
-// 画面の下3分の1の領域にあるかどうかをチェックする関数
-function isInBottomThird(y) {
-    return y > (window.innerHeight * 2 / 3);
+// 画面の上3分の1の領域にあるかどうかをチェックする関数
+function isInTopThird(y) {
+    return y < (window.innerHeight / 3);
 }
 
 // 衝突イベントを監視する
 Events.on(engine, 'collisionStart', (event) => {
     event.pairs.forEach((pair) => {
         const { bodyA, bodyB } = pair;
-        // 両方がボールで、同じ色で、かつ画面の下3分の1にある場合
+        // 両方がボールで、同じ色で、かつ画面の上3分の1にある場合
         if (bodyA.color && bodyB.color && bodyA.color === bodyB.color &&
-            isInBottomThird(bodyA.position.y) && isInBottomThird(bodyB.position.y)) {
+            isInTopThird(bodyA.position.y) && isInTopThird(bodyB.position.y)) {
             // 両方のボールを消す
             World.remove(engine.world, [bodyA, bodyB]);
             balls = balls.filter(ball => ball !== bodyA && ball !== bodyB);
@@ -162,26 +165,76 @@ function gameLoop() {
 // ゲームループを開始する
 gameLoop();
 
+// オーバーレイキャンバスを作成
+const overlay = document.createElement('canvas');
+overlay.style.position = 'absolute';
+overlay.style.top = '0';
+overlay.style.left = '0';
+overlay.style.pointerEvents = 'none';
+document.body.appendChild(overlay);
+
+// オーバーレイコンテキストを取得
+const overlayCtx = overlay.getContext('2d');
+
+// 画面を分割する線を描画する関数（上部1/3に変更）
+function drawDividers() {
+    overlayCtx.strokeStyle = 'rgba(128, 128, 128, 0.1)'; // 薄いグレー (0.1の透明度)
+    overlayCtx.lineWidth = 2;
+    overlayCtx.beginPath();
+    overlayCtx.moveTo(0, window.innerHeight / 3);
+    overlayCtx.lineTo(window.innerWidth, window.innerHeight / 3);
+    overlayCtx.stroke();
+}
+
+// スコアを描画する関数を更新（左下に変更）
+function drawScore() {
+    const fontSize = Math.min(40, window.innerWidth / 15); // 画面幅に応じてフォントサイズを調整
+    overlayCtx.font = `${fontSize}px Arial`;
+    overlayCtx.fillStyle = 'black';
+    overlayCtx.textAlign = 'left';
+    overlayCtx.textBaseline = 'bottom'; // テキストの下端を基準にする
+    const padding = fontSize / 2; // パディングをフォントサイズの半分に設定
+    overlayCtx.fillText(`SCORE: ${score}`, padding, window.innerHeight - padding);
+}
+
+// オーバーレイの更新関数
+function updateOverlay() {
+    overlay.width = window.innerWidth;
+    overlay.height = window.innerHeight;
+    overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+    drawDividers();
+    drawScore();
+    requestAnimationFrame(updateOverlay);
+}
+
 // ウィンドウのサイズが変わったときの処理
 window.addEventListener('resize', () => {
     // キャンバスのサイズを新しいウィンドウサイズに合わせる
     render.canvas.width = window.innerWidth;
     render.canvas.height = window.innerHeight;
+    
+    // レンダラーのバウンズも更新
+    render.bounds.max.x = window.innerWidth;
+    render.bounds.max.y = window.innerHeight;
 
-    // いったん壁と地面を取り除く
-    World.remove(engine.world, [ground, leftWall, rightWall]);
+    // オーバーレイキャンバスのサイズも更新
+    overlay.width = window.innerWidth;
+    overlay.height = window.innerHeight;
 
-    // 地面の位置とサイズを新しいウィンドウサイズに合わせて調整する
-    ground.position.x = window.innerWidth / 2;
-    ground.position.y = window.innerHeight;
-    ground.vertices[0].x = 0;
-    ground.vertices[0].y = window.innerHeight;
-    ground.vertices[1].x = window.innerWidth;
-    ground.vertices[1].y = window.innerHeight;
-    ground.vertices[2].x = window.innerWidth;
-    ground.vertices[2].y = window.innerHeight + 60;
-    ground.vertices[3].x = 0;
-    ground.vertices[3].y = window.innerHeight + 60;
+    // いったん天井と壁を取り除く
+    World.remove(engine.world, [ceiling, leftWall, rightWall]);
+
+    // 天井の位置とサイズを新しいウィンドウサイズに合わせて調整する
+    ceiling.position.x = window.innerWidth / 2;
+    ceiling.position.y = 0;
+    ceiling.vertices[0].x = 0;
+    ceiling.vertices[0].y = -60;
+    ceiling.vertices[1].x = window.innerWidth;
+    ceiling.vertices[1].y = -60;
+    ceiling.vertices[2].x = window.innerWidth;
+    ceiling.vertices[2].y = 0;
+    ceiling.vertices[3].x = 0;
+    ceiling.vertices[3].y = 0;
 
     // 左右の壁の位置を新しいウィンドウサイズに合わせて調整する
     leftWall.position.x = 0;
@@ -189,15 +242,15 @@ window.addEventListener('resize', () => {
     rightWall.position.x = window.innerWidth;
     rightWall.position.y = window.innerHeight / 2;
 
-    // 調整した壁と地面を物理世界に追加し直す
-    World.add(engine.world, [ground, leftWall, rightWall]);
+    // 調整した天井と壁を物理世界に追加し直す
+    World.add(engine.world, [ceiling, leftWall, rightWall]);
 });
 
-// クリックやタッチイベントに対応する関数
+// クリックやタッチイベントに対応する関数（下部からボールを発射）
 function handleInteraction(event) {
     // クリックまたはタッチ位置を取得
     const x = event.clientX || event.touches[0].clientX;
-    const y = event.clientY || event.touches[0].clientY;
+    const y = window.innerHeight; // 画面の一番下から発射
 
     // クリック位置から5つのボールを発射
     for (let i = 0; i < 5; i++) {
@@ -211,28 +264,5 @@ render.canvas.addEventListener('click', handleInteraction);
 // タッチイベントリスナーを追加（モバイルデバイス用）
 render.canvas.addEventListener('touchstart', handleInteraction);
 
-// 画面を分割する線を描画する関数
-function drawDividers() {
-    const ctx = render.context;
-    ctx.strokeStyle = 'rgba(128, 128, 128, 0.1)'; // 薄いグレー (0.1の透明度)
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, window.innerHeight * 2 / 3);
-    ctx.lineTo(window.innerWidth, window.innerHeight * 2 / 3);
-    ctx.stroke();
-}
-
-// スコアを描画する関数
-function drawScore() {
-    const ctx = render.context;
-    ctx.font = '40px Arial';
-    ctx.fillStyle = 'black';
-    ctx.textAlign = 'right';
-    ctx.fillText(`SCORE: ${score}`, window.innerWidth - 20, 60);
-}
-
-// レンダリング後に分割線とスコアを描画
-Events.on(render, 'afterRender', () => {
-    drawDividers();
-    drawScore();
-});
+// オーバーレイの更新を開始
+updateOverlay();
