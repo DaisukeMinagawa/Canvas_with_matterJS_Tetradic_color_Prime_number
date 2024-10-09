@@ -1,3 +1,35 @@
+// キャッシュをクリアする関数
+async function clearCaches() {
+    try {
+        // 利用可能なすべてのキャッシュ名を取得
+        const cacheNames = await caches.keys();
+        
+        // 各キャッシュを削除
+        await Promise.allSettled(cacheNames.map(name => caches.delete(name)));
+        
+        // サービスワーカーが存在する場合は登録解除
+        if ('serviceWorker' in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.allSettled(registrations.map(reg => reg.unregister()));
+        }
+        
+        // ローカルストレージとセッションストレージをクリア
+        localStorage.clear();
+        sessionStorage.clear();
+        
+        // IndexedDBのデータベースを削除
+        const databases = await indexedDB.databases();
+        await Promise.allSettled(databases.map(db => indexedDB.deleteDatabase(db.name)));
+        
+        console.log('All caches and storages have been cleared.');
+    } catch (error) {
+        console.error('Error clearing caches:', error);
+    }
+}
+
+// ページロード時にキャッシュをクリア
+window.addEventListener('load', clearCaches);
+
 // Matter.js から必要な機能を取り出す。これらを使って物理世界を作る
 const { Engine, Render, Runner, Bodies, World, Body, Vector, Events } = Matter;
 
