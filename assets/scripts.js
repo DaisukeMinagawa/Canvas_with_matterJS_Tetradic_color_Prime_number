@@ -198,13 +198,71 @@ function drawScore() {
     overlayCtx.fillText(`SCORE: ${score}`, padding, window.innerHeight - padding);
 }
 
-// オーバーレイの更新関数
+// 星型のアニメーションを管理するためのクラス
+class StarAnimation {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.size = 0;
+        this.opacity = 1;
+        this.growing = true;
+    }
+
+    update() {
+        if (this.growing) {
+            this.size += 2;
+            if (this.size >= 50) {
+                this.growing = false;
+            }
+        } else {
+            this.size -= 2;
+            this.opacity -= 0.1;
+        }
+        return this.opacity > 0;
+    }
+
+    draw(ctx) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.beginPath();
+        for (let i = 0; i < 5; i++) {
+            ctx.lineTo(
+                Math.cos((18 + i * 72) * Math.PI / 180) * this.size,
+                -Math.sin((18 + i * 72) * Math.PI / 180) * this.size
+            );
+            ctx.lineTo(
+                Math.cos((54 + i * 72) * Math.PI / 180) * (this.size / 2),
+                -Math.sin((54 + i * 72) * Math.PI / 180) * (this.size / 2)
+            );
+        }
+        ctx.closePath();
+        ctx.fillStyle = `rgba(255, 255, 0, ${this.opacity})`;
+        ctx.fill();
+        ctx.restore();
+    }
+
+}
+
+// 星型のアニメーションを格納する配列
+let starAnimations = [];
+
+// オーバーレイの更新関数を更新
 function updateOverlay() {
     overlay.width = window.innerWidth;
     overlay.height = window.innerHeight;
     overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
     drawDividers();
     drawScore();
+
+    // 星型のアニメーションを更新して描画
+    starAnimations = starAnimations.filter(star => {
+        if (star.update()) {
+            star.draw(overlayCtx);
+            return true;
+        }
+        return false;
+    });
+
     requestAnimationFrame(updateOverlay);
 }
 
@@ -247,11 +305,14 @@ window.addEventListener('resize', () => {
     World.add(engine.world, [ceiling, leftWall, rightWall]);
 });
 
-// クリックやタッチイベントに対応する関数（クリックした場所からボールを発射）
+// クリックやタッチイベントに対応する関数を更新
 function handleInteraction(event) {
     // クリックまたはタッチ位置を取得
     const x = event.clientX || event.touches[0].clientX;
     const y = event.clientY || event.touches[0].clientY;
+
+    // 星型のアニメーションを追加
+    starAnimations.push(new StarAnimation(x, y));
 
     // クリック位置からボールを発射
     shootBall(x, y, true);  // ユーザーが発射したボールはisUserBall = true

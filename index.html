@@ -4,6 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Matter.js、素数とテトラード配色のボールアニメーション</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.18.0/matter.min.js"></script>
+    <script>
+        // キャッシュバスティングのためのタイムスタンプを生成
+        var cacheBuster = new Date().getTime();
+        
+        // 動的にscript要素を作成し、キャッシュバスティング用のクエリパラメータを追加
+        var script = document.createElement('script');
+        script.src = 'game.js?v=' + cacheBuster;
+        document.head.appendChild(script);
+    </script>
     <style>
         body, html {
             margin: 0;
