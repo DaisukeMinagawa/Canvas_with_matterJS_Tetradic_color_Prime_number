@@ -74,7 +74,7 @@ function generateTetradColors() {
 const tetradColors = generateTetradColors();
 
 // ボールを作る関数
-function createBall(x, y) {
+function createBall(x, y, isUserBall = false) {
     const size = Math.random() * 15 + 10;  // 10から25の間でランダムなサイズを決める
     const color = tetradColors[Math.floor(Math.random() * tetradColors.length)];  // ランダムに色を選ぶ
     return Bodies.circle(x, y, size, {
@@ -85,7 +85,8 @@ function createBall(x, y) {
             fillStyle: color,
             strokeStyle: 'transparent'  // 輪郭を透明にする
         },
-        color: color  // ボールの色を保存しておく
+        color: color,  // ボールの色を保存しておく
+        isUserBall: isUserBall  // ユーザーが発射したボールかどうかを記録
     });
 }
 
@@ -95,12 +96,8 @@ let balls = [];
 const minBalls = 20;
 
 // ボールを発射する関数（上向きに変更）
-function shootBall(startX, startY) {
-    // startXとstartYが指定されていない場合、ランダムな位置から発射
-    if (startX === undefined) startX = Math.random() * (window.innerWidth - 100) + 50;
-    if (startY === undefined) startY = window.innerHeight * 2 / 3 + Math.random() * (window.innerHeight / 3);
-
-    const ball = createBall(startX, startY);  // ボールを作る
+function shootBall(startX, startY, isUserBall = false) {
+    const ball = createBall(startX, startY, isUserBall);  // ボールを作る
     World.add(engine.world, ball);  // 物理世界にボールを追加する
     balls.push(ball);  // 配列にボールを追加する
 
@@ -125,11 +122,13 @@ Events.on(engine, 'collisionStart', (event) => {
         // 両方がボールで、同じ色で、かつ画面の上3分の1にある場合
         if (bodyA.color && bodyB.color && bodyA.color === bodyB.color &&
             isInTopThird(bodyA.position.y) && isInTopThird(bodyB.position.y)) {
+            // 少なくとも一方がユーザーが発射したボールの場合のみスコアを増やす
+            if (bodyA.isUserBall || bodyB.isUserBall) {
+                score += 1;
+            }
             // 両方のボールを消す
             World.remove(engine.world, [bodyA, bodyB]);
             balls = balls.filter(ball => ball !== bodyA && ball !== bodyB);
-            // スコアを増やす
-            score += 1;
         }
     });
 });
@@ -155,7 +154,9 @@ function gameLoop() {
 
     // ボールの数が最小数より少なければ、新しいボールを発射する
     while (balls.length < minBalls) {
-        shootBall();
+        const startX = Math.random() * (window.innerWidth - 100) + 50;
+        const startY = window.innerHeight * 2 / 3 + Math.random() * (window.innerHeight / 3);
+        shootBall(startX, startY, false);  // ランダムに発射されたボールはisUserBall = false
     }
 
     // 次のフレームでもこの関数を呼び出す
@@ -246,16 +247,14 @@ window.addEventListener('resize', () => {
     World.add(engine.world, [ceiling, leftWall, rightWall]);
 });
 
-// クリックやタッチイベントに対応する関数（下部からボールを発射）
+// クリックやタッチイベントに対応する関数（クリックした場所からボールを発射）
 function handleInteraction(event) {
     // クリックまたはタッチ位置を取得
     const x = event.clientX || event.touches[0].clientX;
-    const y = window.innerHeight; // 画面の一番下から発射
+    const y = event.clientY || event.touches[0].clientY;
 
-    // クリック位置から5つのボールを発射
-    for (let i = 0; i < 5; i++) {
-        shootBall(x, y);
-    }
+    // クリック位置からボールを発射
+    shootBall(x, y, true);  // ユーザーが発射したボールはisUserBall = true
 }
 
 // マウスクリックイベントリスナーを追加
